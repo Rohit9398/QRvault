@@ -84,6 +84,9 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
     }
   };
 
+  const [printModalOpen, setPrintModalOpen] = useState(false);
+  const [selectedPrintTemplate, setSelectedPrintTemplate] = useState<'google-review-square' | 'google-review-vertical' | 'simple'>('google-review-square');
+
   const handleDownloadPNG = async () => {
     if (!qr) return;
     await downloadQRAsPNG(qr.redirectUrl, qr.qrId);
@@ -97,14 +100,120 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
   };
 
   const handlePrint = () => {
+    setPrintModalOpen(true);
+  };
+
+  const executePrint = () => {
     if (!qr || !qrImageUrl) return;
-    printQRCodes(`
-      <div style="text-align: center; padding: 40px;">
-        <h2 style="font-size: 24px; margin-bottom: 8px; color: #333;">${qr.qrId}</h2>
-        <img src="${qrImageUrl}" alt="QR Code" style="width: 300px; height: 300px;" />
-        <p style="margin-top: 12px; font-size: 14px; color: #666;">Scan to visit</p>
-      </div>
-    `);
+    const actCode = qr.activationCode || qr.qrId;
+
+    let templateHTML = '';
+    if (selectedPrintTemplate === 'google-review-square') {
+      templateHTML = `
+        <div style="width:340px; height:340px; border-radius:28px; background:#ffffff; box-shadow:0 10px 28px rgba(0,0,0,0.1); border:1px solid #e2e8f0; overflow:hidden; font-family:'Inter',system-ui,-apple-system,sans-serif; display:flex; flex-direction:column; position:relative; page-break-inside:avoid; margin:20px auto; box-sizing:border-box;">
+          <div style="background:#1a73e8; color:#ffffff; padding:22px 16px 36px; text-align:center; position:relative;">
+            <h2 style="font-size:15px; font-weight:800; letter-spacing:0.8px; margin:0 0 6px; text-transform:uppercase; color:#ffffff; line-height:1.25;">
+              MAKE OUR DAY,<br>LEAVE US A REVIEW!
+            </h2>
+            <div style="font-size:18px; color:#fbbc04; letter-spacing:3px;">★★★★★</div>
+            <svg viewBox="0 0 500 60" preserveAspectRatio="none" style="position:absolute; bottom:0; left:0; width:100%; height:28px;">
+              <path d="M0,20 C150,60 350,0 500,40 L500,60 L0,60 Z" fill="#ffffff"></path>
+            </svg>
+          </div>
+          <div style="position:absolute; top:112px; left:50%; transform:translateX(-50%); width:66px; height:66px; background:#ffffff; border-radius:50%; box-shadow:0 4px 14px rgba(0,0,0,0.15); display:flex; align-items:center; justify-content:center; z-index:10;">
+            <svg viewBox="0 0 24 24" width="44" height="44">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+          </div>
+          <div style="flex:1; padding:36px 20px 14px; display:flex; align-items:center; justify-content:space-around; background:#ffffff;">
+            <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
+              <svg viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="#111827" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="18" y="10" width="22" height="38" rx="4" fill="#ffffff"/>
+                <line x1="25" y1="15" x2="33" y2="15"/>
+                <path d="M44 24c2.5 1.8 4 4.3 4 7s-1.5 5.2-4 7"/>
+                <path d="M48 20c4.5 3 7 7 7 11s-2.5 8-7 11"/>
+                <path d="M10 44c4-2 7-6 11-10l5 3-4 6c-2 3-5 5-8 6z"/>
+              </svg>
+              <span style="font-size:12px; font-weight:800; color:#111827; margin-top:5px; letter-spacing:0.5px; line-height:1.2;">
+                TAP<br>OR<br>SCAN
+              </span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
+              <div style="padding:6px; border:2px solid #111827; border-radius:12px; background:#ffffff;">
+                <img src="${qrImageUrl}" alt="QR Code" style="width:112px; height:112px; display:block;" />
+              </div>
+              <span style="font-size:10px; font-weight:700; color:#4b5563; margin-top:5px; font-family:monospace; letter-spacing:0.5px;">
+                Act: ${actCode}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (selectedPrintTemplate === 'google-review-vertical') {
+      templateHTML = `
+        <div style="width:280px; height:440px; border-radius:28px; background:#ffffff; box-shadow:0 10px 28px rgba(0,0,0,0.1); border:1px solid #e2e8f0; overflow:hidden; font-family:'Inter',system-ui,-apple-system,sans-serif; display:flex; flex-direction:column; position:relative; page-break-inside:avoid; margin:20px auto; box-sizing:border-box;">
+          <div style="background:#1a73e8; color:#ffffff; padding:26px 16px 48px; text-align:center; position:relative;">
+            <h2 style="font-size:18px; font-weight:800; letter-spacing:0.5px; margin:0; color:#ffffff;">
+              Review us on Google
+            </h2>
+            <svg viewBox="0 0 500 80" preserveAspectRatio="none" style="position:absolute; bottom:0; left:0; width:100%; height:32px;">
+              <path d="M0,30 C180,80 320,0 500,45 L500,80 L0,80 Z" fill="#ffffff"></path>
+            </svg>
+          </div>
+          <div style="position:absolute; top:72px; left:50%; transform:translateX(-50%); width:84px; height:84px; background:#ffffff; border-radius:50%; box-shadow:0 6px 18px rgba(0,0,0,0.14); display:flex; align-items:center; justify-content:center; z-index:10;">
+            <svg viewBox="0 0 24 24" width="56" height="56">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+              <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+            </svg>
+          </div>
+          <div style="text-align:center; margin-top:44px; font-size:24px; color:#fbbc04; letter-spacing:4px;">
+            ★★★★★
+          </div>
+          <div style="flex:1; padding:18px 20px 20px; display:flex; align-items:center; justify-content:space-around; background:#ffffff;">
+            <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
+              <svg viewBox="0 0 64 64" width="56" height="56" fill="none" stroke="#111827" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="18" y="10" width="22" height="38" rx="4" fill="#ffffff"/>
+                <line x1="25" y1="15" x2="33" y2="15"/>
+                <path d="M44 24c2.5 1.8 4 4.3 4 7s-1.5 5.2-4 7"/>
+                <path d="M48 20c4.5 3 7 7 7 11s-2.5 8-7 11"/>
+                <path d="M10 44c4-2 7-6 11-10l5 3-4 6c-2 3-5 5-8 6z"/>
+              </svg>
+              <span style="font-size:13px; font-weight:800; color:#111827; margin-top:5px; letter-spacing:0.3px;">
+                Tap or Scan
+              </span>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:center; text-align:center;">
+              <div style="padding:6px; border:2px solid #111827; border-radius:12px; background:#ffffff;">
+                <img src="${qrImageUrl}" alt="QR Code" style="width:115px; height:115px; display:block;" />
+              </div>
+              <span style="font-size:10px; font-weight:700; color:#4b5563; margin-top:5px; font-family:monospace; letter-spacing:0.5px;">
+                Act: ${actCode}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      templateHTML = `
+        <div style="text-align:center; padding:36px; border:2px solid #e5e7eb; border-radius:20px; max-width:300px; margin:20px auto; background:#ffffff; page-break-inside:avoid; font-family:'Inter',system-ui,sans-serif;">
+          <h2 style="font-size:22px; color:#111827; margin:0 0 16px; font-weight:800; letter-spacing:3px;">SCAN ME</h2>
+          <div style="display:inline-block; padding:8px; border:2px solid #111827; border-radius:12px; background:#ffffff; margin-bottom:12px;">
+            <img src="${qrImageUrl}" alt="QR Code" style="width:180px; height:180px; display:block;" />
+          </div>
+          <p style="font-family:monospace; font-size:11px; font-weight:700; color:#4b5563; margin:0 0 4px; letter-spacing:0.5px;">Act Code: ${actCode}</p>
+          <p style="font-size:12px; color:#6b7280; margin:0;">Scan to visit</p>
+        </div>
+      `;
+    }
+
+    printQRCodes(templateHTML);
+    setPrintModalOpen(false);
+    toast.success('Print layout generated');
   };
 
   const handleCopy = (text: string, label: string) => {
@@ -349,6 +458,96 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
           </div>
         </div>
       </div>
+
+      {/* Print Template Selection Modal */}
+      {printModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-white">Choose Print Template</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Select a design to print with this QR code & activation code.</p>
+              </div>
+              <button
+                onClick={() => setPrintModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1.5 rounded-lg hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setSelectedPrintTemplate('google-review-square')}
+                className={`w-full p-4 rounded-xl border text-left transition-all ${
+                  selectedPrintTemplate === 'google-review-square'
+                    ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500 text-white'
+                    : 'border-gray-800 bg-gray-950/50 text-gray-300 hover:bg-gray-800/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">Google Review Standee (Square)</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">Recommended</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Official Google wave header, 5 gold stars, Tap or Scan icon + Act Code: <code className="font-mono text-gray-300">{qr.activationCode}</code>
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPrintTemplate('google-review-vertical')}
+                className={`w-full p-4 rounded-xl border text-left transition-all ${
+                  selectedPrintTemplate === 'google-review-vertical'
+                    ? 'border-blue-500 bg-blue-500/10 ring-1 ring-blue-500 text-white'
+                    : 'border-gray-800 bg-gray-950/50 text-gray-300 hover:bg-gray-800/40'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-sm">Google Review Card (Vertical Standee)</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Vertical tent layout with Google &quot;G&quot; logo, 5 stars, NFC tap icon + Act Code: <code className="font-mono text-gray-300">{qr.activationCode}</code>
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPrintTemplate('simple')}
+                className={`w-full p-4 rounded-xl border text-left transition-all ${
+                  selectedPrintTemplate === 'simple'
+                    ? 'border-violet-500 bg-violet-500/10 ring-1 ring-violet-500 text-white'
+                    : 'border-gray-800 bg-gray-950/50 text-gray-300 hover:bg-gray-800/40'
+                }`}
+              >
+                <span className="font-semibold text-sm">Minimalist &quot;SCAN ME&quot; Card</span>
+                <p className="text-xs text-gray-400 mt-1">
+                  Clean modern card with large QR code + Act Code: <code className="font-mono text-gray-300">{qr.activationCode}</code>
+                </p>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPrintModalOpen(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl text-sm font-medium text-gray-300 bg-gray-800/60 hover:bg-gray-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={executePrint}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 shadow-lg shadow-violet-500/25 transition-all"
+              >
+                <Printer className="w-4 h-4" />
+                Print Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
