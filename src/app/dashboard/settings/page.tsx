@@ -1,15 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { Settings as SettingsIcon, User, Globe, Shield, Save, Loader2 } from 'lucide-react';
+import { Settings as SettingsIcon, User, Globe, Shield, Save, Loader2, Check } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user, resetPassword } = useAuth();
   const [appUrl, setAppUrl] = useState(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.origin) {
+      const currentOrigin = window.location.origin;
+      if (!currentOrigin.includes('localhost')) {
+        setAppUrl(currentOrigin);
+      }
+    }
+  }, []);
 
   const handleResetPassword = async () => {
     if (!user?.email) return;
