@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getUserQRCodes, QRCodeRecord } from '@/lib/firestore';
 import { generateQRDataURL, getEffectiveRedirectURL } from '@/lib/qr-utils';
-import { printQRCodes, PrintSize } from '@/lib/download-utils';
+import { printQRCodes } from '@/lib/download-utils';
 import toast from 'react-hot-toast';
 import {
   Palette, Star, QrCode, Building2, Printer, Check, Loader2,
