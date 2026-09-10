@@ -34,8 +34,14 @@ export async function generateQRSVG(url: string): Promise<string> {
  * Build the redirect URL for a QR code
  */
 export function buildRedirectURL(qrId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  return `${baseUrl}/r/${qrId}`;
+  let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if ((!baseUrl || baseUrl.includes('localhost')) && typeof window !== 'undefined') {
+    baseUrl = window.location.origin;
+  }
+  if (!baseUrl) {
+    baseUrl = 'http://localhost:3000';
+  }
+  return `${baseUrl.replace(/\/$/, '')}/r/${qrId}`;
 }
 
 /**
