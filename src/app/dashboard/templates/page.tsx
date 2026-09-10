@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { getUserQRCodes, QRCodeRecord } from '@/lib/firestore';
-import { generateQRDataURL } from '@/lib/qr-utils';
-import { printQRCodes } from '@/lib/download-utils';
+import { generateQRDataURL, getEffectiveRedirectURL } from '@/lib/qr-utils';
+import { printQRCodes, PrintSize } from '@/lib/download-utils';
 import toast from 'react-hot-toast';
 import {
   Palette, Star, QrCode, Building2, Printer, Check, Loader2,
@@ -130,7 +130,8 @@ export default function TemplatesPage() {
       const htmlParts: string[] = [];
 
       for (const qr of selected) {
-        const imageUrl = await generateQRDataURL(qr.redirectUrl, 400);
+        const effectiveUrl = getEffectiveRedirectURL(qr.redirectUrl, qr.qrId);
+        const imageUrl = await generateQRDataURL(effectiveUrl, 400);
         htmlParts.push(generateTemplateHTML(selectedTemplate, imageUrl, qr.qrId, businessName));
       }
 

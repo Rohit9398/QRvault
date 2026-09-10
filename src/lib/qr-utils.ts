@@ -45,6 +45,20 @@ export function buildRedirectURL(qrId: string): string {
 }
 
 /**
+ * Resolve effective redirect URL so older QRs created on localhost
+ * automatically point to the current active deployed domain when viewed or downloaded.
+ */
+export function getEffectiveRedirectURL(savedUrl: string, qrId: string): string {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    const origin = window.location.origin;
+    if (!origin.includes('localhost') && (!savedUrl || savedUrl.includes('localhost'))) {
+      return `${origin.replace(/\/$/, '')}/r/${qrId}`;
+    }
+  }
+  return savedUrl || buildRedirectURL(qrId);
+}
+
+/**
  * Validate a URL string
  */
 export function isValidURL(url: string): boolean {

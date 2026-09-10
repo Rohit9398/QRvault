@@ -3,8 +3,7 @@
 import { useEffect, useState, use } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getQRCodeById, updateDestinationUrl, activateQRCode, deactivateQRCode, QRCodeRecord } from '@/lib/firestore';
-import { generateQRDataURL } from '@/lib/qr-utils';
-import { isValidURL } from '@/lib/qr-utils';
+import { generateQRDataURL, isValidURL, getEffectiveRedirectURL } from '@/lib/qr-utils';
 import { downloadQRAsPNG, downloadQRAsSVG, printQRCodes } from '@/lib/download-utils';
 import StatusBadge from '@/components/StatusBadge';
 import toast from 'react-hot-toast';
@@ -30,9 +29,11 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
       try {
         const record = await getQRCodeById(id);
         if (record && record.ownerId === user?.uid) {
-          setQr(record);
+          const effectiveUrl = getEffectiveRedirectURL(record.redirectUrl, record.qrId);
+          const updatedRecord = { ...record, redirectUrl: effectiveUrl };
+          setQr(updatedRecord);
           setDestinationUrl(record.destinationUrl);
-          const imageUrl = await generateQRDataURL(record.redirectUrl, 400);
+          const imageUrl = await generateQRDataURL(effectiveUrl, 400);
           setQrImageUrl(imageUrl);
         }
       } catch (error) {
