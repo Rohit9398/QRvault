@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - users can only read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // QR Codes collection
+    match /qrCodes/{qrDocId} {
+      // Users can only read their own QR codes
+      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      
+      // Users can only create QR codes with their own UID as ownerId
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      
+      // Users can only update their own QR codes
+      allow update: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      
+      // Users can only delete their own QR codes
+      allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      
+      // Scans subcollection - allow read for QR owner, allow create for anyone (scan tracking)
+      match /scans/{scanId} {
+        allow read: if request.auth != null && get(/databases/$(database)/documents/qrCodes/$(qrDocId)).data.ownerId == request.auth.uid;
+        allow create: if true; // Anyone scanning can create a scan record
+      }
+    }
+    
+    // Public read access for QR redirect lookup (by qrId field)
+    // This is handled server-side via API routes, so no public rules needed
+  }
+}
