@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getQRCodeById, updateDestinationUrl, activateQRCode, deactivateQRCode, QRCodeRecord } from '@/lib/firestore';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { generateQRDataURL, isValidURL, getEffectiveRedirectURL } from '@/lib/qr-utils';
 import { downloadQRAsPNG, downloadQRAsSVG, printQRCodes } from '@/lib/download-utils';
 import StatusBadge from '@/components/StatusBadge';
@@ -11,7 +13,7 @@ import Link from 'next/link';
 import {
   ArrowLeft, Download, Printer, Edit3, Power, PowerOff,
   Globe, Calendar, Hash, Scan, Shield, ExternalLink, Save,
-  X, Loader2, Copy,
+  X, Loader2, Copy, RotateCw,
 } from 'lucide-react';
 
 export default function QRDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,33 +21,66 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
   const { user } = useAuth();
   const [qr, setQr] = useState<QRCodeRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [qrImageUrl, setQrImageUrl] = useState('');
   const [editing, setEditing] = useState(false);
   const [destinationUrl, setDestinationUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const applyQRData = useCallback(async (record: QRCodeRecord) => {
+    const effectiveUrl = getEffectiveRedirectURL(record.redirectUrl, record.qrId);
+    const updatedRecord = { ...record, redirectUrl: effectiveUrl };
+    setQr(updatedRecord);
+    setDestinationUrl((prev) => (editing ? prev : record.destinationUrl || ''));
+    try {
+      const imageUrl = await generateQRDataURL(effectiveUrl, 400);
+      setQrImageUrl(imageUrl);
+    } catch (e) {
+      console.error('Failed to generate QR image:', e);
+    }
+  }, [editing]);
+
   useEffect(() => {
-    const fetchQR = async () => {
-      try {
-        const record = await getQRCodeById(id);
-        if (record && record.ownerId === user?.uid) {
-          const effectiveUrl = getEffectiveRedirectURL(record.redirectUrl, record.qrId);
-          const updatedRecord = { ...record, redirectUrl: effectiveUrl };
-          setQr(updatedRecord);
-          setDestinationUrl(record.destinationUrl);
-          const imageUrl = await generateQRDataURL(effectiveUrl, 400);
-          setQrImageUrl(imageUrl);
+    if (!user || !id) return;
+
+    // Real-time listener for instant scan count updates
+    const docRef = doc(db, 'qrCodes', id);
+    const unsubscribe = onSnapshot(
+      docRef,
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.ownerId === user.uid) {
+            const record = { id: docSnap.id, ...data } as QRCodeRecord;
+            await applyQRData(record);
+          }
         }
-      } catch (error) {
-        console.error('Failed to fetch QR:', error);
-        toast.error('Failed to load QR code');
-      } finally {
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Realtime QR listener error:', error);
         setLoading(false);
       }
-    };
+    );
 
-    if (user) fetchQR();
-  }, [id, user]);
+    return () => unsubscribe();
+  }, [id, user, applyQRData]);
+
+  const handleManualRefresh = async () => {
+    if (!user || !id) return;
+    setRefreshing(true);
+    try {
+      const record = await getQRCodeById(id);
+      if (record && record.ownerId === user.uid) {
+        await applyQRData(record);
+        toast.success('Refreshed!');
+      }
+    } catch (err) {
+      console.error('Refresh error:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleSaveDestination = async () => {
     if (!qr) return;
@@ -353,9 +388,24 @@ export default function QRDetailPage({ params }: { params: Promise<{ id: string 
               </div>
               <div className="flex items-start gap-3 p-4 rounded-xl bg-gray-800/20">
                 <Scan className="w-5 h-5 text-blue-400 mt-0.5" />
-                <div>
-                  <p className="text-xs text-gray-500 mb-0.5">Total Scans</p>
-                  <p className="text-sm font-semibold text-gray-200">{qr.scanCount}</p>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-gray-500 mb-0.5">Total Scans</p>
+                    <button
+                      onClick={handleManualRefresh}
+                      disabled={refreshing}
+                      title="Refresh scan count"
+                      className="text-gray-500 hover:text-gray-300 transition-colors p-0.5 rounded cursor-pointer"
+                    >
+                      <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-violet-400' : ''}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-gray-200">{qr.scanCount || 0}</p>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
+                    </span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-4 rounded-xl bg-gray-800/20">

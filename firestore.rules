@@ -10,21 +10,23 @@ service cloud.firestore {
     
     // QR Codes collection
     match /qrCodes/{qrDocId} {
-      // Users can only read their own QR codes
-      allow read: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      // Read access: Owner can read, or anyone can read active/inactive QR for redirect & activation
+      allow read: if (request.auth != null && resource.data.ownerId == request.auth.uid) || true;
       
       // Users can only create QR codes with their own UID as ownerId
       allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
       
-      // Users can only update their own QR codes
-      allow update: if request.auth != null && resource.data.ownerId == request.auth.uid;
+      // Update access: Owner can update their QR, or public scanner can increment scanCount, or activation
+      allow update: if (request.auth != null && resource.data.ownerId == request.auth.uid)
+                   || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['scanCount', 'updatedAt']))
+                   || (resource.data.status == 'inactive' && request.resource.data.status == 'active');
       
       // Users can only delete their own QR codes
       allow delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
       
       // Scans subcollection - allow read for QR owner, allow create for anyone (scan tracking)
       match /scans/{scanId} {
-        allow read: if request.auth != null && get(/databases/$(database)/documents/qrCodes/$(qrDocId)).data.ownerId == request.auth.uid;
+        allow read: if request.auth != null;
         allow create: if true; // Anyone scanning can create a scan record
       }
     }

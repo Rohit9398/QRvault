@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(
   request: NextRequest,
@@ -29,13 +30,22 @@ export async function GET(
       return NextResponse.redirect(new URL(`/qr-error?type=no-destination&id=${qrId}`, request.url));
     }
 
-    // Increment scan count (async, don't block redirect)
-    incrementScanCount(qr.id).catch(console.error);
+    // Increment scan count and wait for completion before redirecting
+    try {
+      await incrementScanCount(qr.id);
+    } catch (scanErr) {
+      console.error('Failed to increment scan count:', scanErr);
+    }
 
-    // Redirect to destination
-    return NextResponse.redirect(qr.destinationUrl);
+    // Redirect to destination with no-cache headers to ensure every scan is recorded
+    const response = NextResponse.redirect(qr.destinationUrl, { status: 307 });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    return response;
   } catch (error) {
     console.error('Redirect error:', error);
     return NextResponse.redirect(new URL(`/qr-error?type=error&id=${qrId}`, request.url));
   }
 }
+
