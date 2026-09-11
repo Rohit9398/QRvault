@@ -1,24 +1,52 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getUserPlanAndUsage, PlanTier } from '@/lib/firestore';
+import UpgradeModal from '@/components/UpgradeModal';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { Settings as SettingsIcon, User, Globe, Shield, Save, Loader2, Check } from 'lucide-react';
+import { Settings as SettingsIcon, User, Globe, Shield, Save, Loader2, Check, Zap, Sparkles } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user, resetPassword } = useAuth();
   const [appUrl, setAppUrl] = useState(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [planUsage, setPlanUsage] = useState<{
+    plan: PlanTier;
+    planName: string;
+    qrLimit: number;
+    qrUsed: number;
+    remaining: number;
+  }>({
+    plan: 'free',
+    planName: 'Free Trial',
+    qrLimit: 3,
+    qrUsed: 0,
+    remaining: 3,
+  });
+
+  const loadUsage = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await getUserPlanAndUsage(user.uid);
+      setPlanUsage(data);
+    } catch (err) {
+      console.error('Failed to load plan usage:', err);
+    }
+  }, [user]);
 
   useEffect(() => {
+    loadUsage();
     if (typeof window !== 'undefined' && window.location.origin) {
       const currentOrigin = window.location.origin;
       if (!currentOrigin.includes('localhost')) {
         setAppUrl(currentOrigin);
       }
     }
-  }, []);
+  }, [loadUsage]);
 
   const handleResetPassword = async () => {
     if (!user?.email) return;
@@ -70,6 +98,47 @@ export default function SettingsPage() {
               disabled
               className="w-full px-4 py-3 rounded-xl bg-gray-900/50 border border-gray-800/50 text-gray-400 text-sm font-mono cursor-not-allowed"
             />
+          </div>
+        </div>
+      </div>
+
+      {/* Plan & Subscription */}
+      <div className="rounded-2xl border border-gray-800/50 bg-gray-900/30 backdrop-blur-sm p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-violet-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Plan & Quota</h2>
+              <p className="text-xs text-gray-500">Manage your subscription and limits</p>
+            </div>
+          </div>
+          <span className="px-3 py-1 rounded-full bg-violet-500/20 text-violet-300 text-xs font-bold border border-violet-500/30">
+            {planUsage.planName}
+          </span>
+        </div>
+
+        <div className="p-4 rounded-xl bg-gray-800/20 border border-gray-800/50 mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-400">Dynamic QRs Used</p>
+            <p className="text-lg font-bold text-white font-mono">
+              {planUsage.qrUsed} <span className="text-sm font-normal text-gray-500">/ {planUsage.qrLimit >= 999999 ? '∞ Unlimited' : planUsage.qrLimit}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setUpgradeModalOpen(true)}
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Upgrade Plan
+            </button>
+            <Link
+              href="/dashboard/pricing"
+              className="px-3 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white bg-gray-800/50 hover:bg-gray-800 transition-colors"
+            >
+              Compare Plans
+            </Link>
           </div>
         </div>
       </div>
@@ -126,6 +195,14 @@ export default function SettingsPage() {
           Send Password Reset Email
         </button>
       </div>
+
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        currentPlan={planUsage.plan}
+        onPlanUpgraded={() => loadUsage()}
+      />
     </div>
   );
 }
+

@@ -1,8 +1,11 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { getUserPlanAndUsage, PlanTier } from '@/lib/firestore';
+import UpgradeModal from '@/components/UpgradeModal';
 import {
   LayoutDashboard,
   QrCode,
@@ -15,6 +18,8 @@ import {
   User,
   ChevronLeft,
   Menu,
+  Sparkles,
+  Zap,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -31,12 +36,39 @@ const navItems = [
   { name: 'Activated QR Codes', href: '/dashboard/qrs?status=active', icon: CheckCircle2 },
   { name: 'Inactive QR Codes', href: '/dashboard/qrs?status=inactive', icon: XCircle },
   { name: 'Templates', href: '/dashboard/templates', icon: Palette },
+  { name: 'Pricing & Plans', href: '/dashboard/pricing', icon: Sparkles },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [planData, setPlanData] = useState<{
+    plan: PlanTier;
+    planName: string;
+    qrLimit: number;
+    qrUsed: number;
+  }>({
+    plan: 'free',
+    planName: 'Free Trial',
+    qrLimit: 3,
+    qrUsed: 0,
+  });
+
+  const loadPlanUsage = async () => {
+    if (!user) return;
+    try {
+      const data = await getUserPlanAndUsage(user.uid);
+      setPlanData(data);
+    } catch (err) {
+      console.error('Failed to load plan usage:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadPlanUsage();
+  }, [user, pathname]);
 
   const isActive = (href: string) => {
     if (href.includes('?')) {
@@ -52,6 +84,8 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
       console.error('Logout failed:', error);
     }
   };
+
+  const usagePercent = Math.min(100, Math.round((planData.qrUsed / planData.qrLimit) * 100));
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
@@ -101,6 +135,43 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         })}
       </nav>
 
+      {/* Plan Quota Widget */}
+      {!collapsed && (
+        <div className="mx-3 mb-2 p-3.5 rounded-2xl bg-gradient-to-b from-gray-900/90 to-gray-950 border border-gray-800/80 shadow-inner">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-300 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-violet-400" />
+              {planData.planName}
+            </span>
+            <button
+              onClick={() => setUpgradeModalOpen(true)}
+              className="text-[11px] font-bold text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3" /> Upgrade
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] text-gray-400">
+              <span>QR Quota</span>
+              <span className="font-mono text-gray-300 font-medium">
+                {planData.qrUsed} / {planData.qrLimit >= 999999 ? '∞' : planData.qrLimit}
+              </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-gray-800 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  usagePercent >= 90
+                    ? 'bg-gradient-to-r from-red-500 to-amber-500'
+                    : 'bg-gradient-to-r from-violet-500 to-indigo-500'
+                }`}
+                style={{ width: `${planData.qrLimit >= 999999 ? 15 : Math.min(100, Math.max(8, usagePercent))}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* User section */}
       <div className="border-t border-gray-800/50 p-3 space-y-1">
         <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
@@ -118,12 +189,19 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 w-full cursor-pointer"
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {!collapsed && <span>Logout</span>}
         </button>
       </div>
+
+      <UpgradeModal
+        isOpen={upgradeModalOpen}
+        onClose={() => setUpgradeModalOpen(false)}
+        currentPlan={planData.plan}
+        onPlanUpgraded={() => loadPlanUsage()}
+      />
     </div>
   );
 

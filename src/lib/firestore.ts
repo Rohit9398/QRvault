@@ -36,11 +36,49 @@ export interface QRCodeRecord {
   updatedAt: Timestamp;
 }
 
+export type PlanTier = 'free' | 'starter' | 'business';
+
 export interface UserRecord {
   email: string;
   displayName: string;
   createdAt: Timestamp;
+  plan?: PlanTier;
+  planUpdatedAt?: Timestamp;
 }
+
+export const PLAN_LIMITS: Record<PlanTier, {
+  qrLimit: number;
+  name: string;
+  badge: string;
+  priceMonthly: number;
+  priceYearly: number;
+  features: string[];
+}> = {
+  free: {
+    qrLimit: 3,
+    name: 'Free Trial',
+    badge: 'Free',
+    priceMonthly: 0,
+    priceYearly: 0,
+    features: ['3 Dynamic QR Codes', 'Basic Scan Tracking', 'Standard Resolution PNG', 'Mobile Redirects'],
+  },
+  starter: {
+    qrLimit: 20,
+    name: 'Starter Pro',
+    badge: 'Popular',
+    priceMonthly: 299,
+    priceYearly: 999,
+    features: ['20 Dynamic QR Codes', 'Google Review Standee Templates', 'High-Res SVG & PNG', 'Instant Live Analytics', 'Batch Print Support'],
+  },
+  business: {
+    qrLimit: 999999,
+    name: 'Business VIP',
+    badge: 'Unlimited',
+    priceMonthly: 799,
+    priceYearly: 2499,
+    features: ['Unlimited Dynamic QRs', 'All Standee & NFC Templates', 'Custom Logo & Branding', 'Priority Support', 'Full CSV & ZIP Export'],
+  },
+};
 
 // Collection references
 const qrCodesCollection = collection(db, 'qrCodes');
@@ -57,8 +95,9 @@ export async function createUserDocument(
   await setDoc(doc(usersCollection, uid), {
     email,
     displayName: displayName || email.split('@')[0],
+    plan: 'free',
     createdAt: Timestamp.now(),
-  });
+  }, { merge: true });
 }
 
 /**
@@ -70,6 +109,48 @@ export async function getUserDocument(uid: string): Promise<UserRecord | null> {
     return docSnap.data() as UserRecord;
   }
   return null;
+}
+
+/**
+ * Get user plan and usage status
+ */
+export async function getUserPlanAndUsage(userId: string): Promise<{
+  plan: PlanTier;
+  planName: string;
+  qrLimit: number;
+  qrUsed: number;
+  remaining: number;
+  canGenerate: boolean;
+}> {
+  const [userDoc, qrsSnapshot] = await Promise.all([
+    getUserDocument(userId),
+    getDocs(query(qrCodesCollection, where('ownerId', '==', userId))),
+  ]);
+
+  const plan: PlanTier = (userDoc?.plan as PlanTier) || 'free';
+  const planInfo = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+  const qrLimit = planInfo.qrLimit;
+  const qrUsed = qrsSnapshot.size;
+  const remaining = Math.max(0, qrLimit - qrUsed);
+
+  return {
+    plan,
+    planName: planInfo.name,
+    qrLimit,
+    qrUsed,
+    remaining,
+    canGenerate: qrUsed < qrLimit,
+  };
+}
+
+/**
+ * Update user plan (e.g. on upgrade)
+ */
+export async function updateUserPlan(uid: string, plan: PlanTier): Promise<void> {
+  await setDoc(doc(usersCollection, uid), {
+    plan,
+    planUpdatedAt: Timestamp.now(),
+  }, { merge: true });
 }
 
 /**
